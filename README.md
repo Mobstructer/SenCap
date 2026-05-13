@@ -153,4 +153,3 @@ Crypto Spades is a full-stack multiplayer Spades card game with real-time gamepl
 ## Conclusion
 
 This project demonstrates a complete full-stack application integrating traditional card game mechanics with modern web technologies and blockchain concepts.</content>
-<parameter name="filePath">c:\Users\malac\Downloads\SenCap-Main\spades\Crypto_Spades_Project_Document.md
