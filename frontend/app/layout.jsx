@@ -2,8 +2,8 @@ import '../styles/globals.css';
 import { AuthProvider } from '../hooks/useAuth';
 
 export const metadata = {
-  title: '♠ Crypto Spades',
-  description: 'Multiplayer Spades with test ETH betting',
+  title: 'Crypto Spades',
+  description: 'Multiplayer Spades with Sepolia ETH table mechanics',
 };
 
 export default function RootLayout({ children }) {

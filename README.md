@@ -41,7 +41,29 @@ spades/
 
 ## Quick Start
 
+<<<<<<< Updated upstream
 ### 1. Database Setup (MySQL)
+=======
+### Option 1: Docker (Recommended)
+
+1. **Prerequisites**: Install [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/).
+
+2. **Run the application**:
+   ```bash
+   docker compose up --build
+   ```
+
+3. **Access the application**:
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:4000
+   - Database: localhost:3307 (MySQL)
+
+The application will automatically set up the database, backend, and frontend services.
+
+### Option 2: Manual Setup
+
+#### 1. Database Setup (MySQL)
+>>>>>>> Stashed changes
 
 ```sql
 CREATE DATABASE spades_db;
@@ -49,7 +71,11 @@ CREATE USER 'spades'@'localhost' IDENTIFIED BY 'yourpassword';
 GRANT ALL PRIVILEGES ON spades_db.* TO 'spades'@'localhost';
 ```
 
+<<<<<<< Updated upstream
 ### 2. Backend
+=======
+#### 2. Backend
+>>>>>>> Stashed changes
 
 ```bash
 cd backend
@@ -58,7 +84,11 @@ npm install
 npm run dev                   # runs on :4000
 ```
 
+<<<<<<< Updated upstream
 ### 3. Frontend
+=======
+#### 3. Frontend
+>>>>>>> Stashed changes
 
 ```bash
 cd frontend
@@ -67,7 +97,11 @@ npm install
 npm run dev                   # runs on :3000
 ```
 
+<<<<<<< Updated upstream
 ### 4. Smart Contract (optional)
+=======
+#### 4. Smart Contract (optional)
+>>>>>>> Stashed changes
 
 ```bash
 cd contracts
@@ -81,6 +115,13 @@ npx hardhat run scripts/deploy.js --network sepolia
 
 ## Environment Variables
 
+<<<<<<< Updated upstream
+=======
+For **Docker setup**, environment variables are configured in `compose.yaml`.
+
+For **manual setup**, create the following files:
+
+>>>>>>> Stashed changes
 ### backend/.env
 ```
 PORT=4000

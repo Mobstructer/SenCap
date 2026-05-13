@@ -1,8 +1,9 @@
 'use client';
 import { useWallet } from '../../hooks/useWallet';
 
-export function WalletButton({ compact = false }) {
-  const { address, connecting, error, connect } = useWallet();
+export function WalletButton({ compact = false, wallet: providedWallet }) {
+  const internalWallet = useWallet();
+  const { address, connecting, connect } = providedWallet || internalWallet;
 
   const short = address ? `${address.slice(0, 6)}…${address.slice(-4)}` : null;
 

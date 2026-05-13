@@ -63,6 +63,14 @@ function encodeRoomId(roomIdStr) {
   return ethers.encodeBytes32String(roomIdStr.replace(/-/g, '').slice(0, 31));
 }
 
+function isEnabled() {
+  return enabled;
+}
+
+function getContractAddress() {
+  return process.env.CONTRACT_ADDRESS || null;
+}
+
 /**
  * Register a new room on-chain before the game starts.
  * @param {string}   roomId          - UUID from gameSocket
@@ -72,10 +80,15 @@ function encodeRoomId(roomIdStr) {
 async function createGame(roomId, walletAddresses, betAmountEth) {
   if (!enabled) return null;
 
-  const players = walletAddresses.map(addr =>
-    addr && ethers.isAddress(addr) ? addr : ethers.ZeroAddress
-  );
-  while (players.length < 4) players.push(ethers.ZeroAddress);
+  if (
+    walletAddresses.length !== 4 ||
+    walletAddresses.some(addr => !addr || !ethers.isAddress(addr) || addr === ethers.ZeroAddress)
+  ) {
+    console.error('⛓  createGame failed: escrow requires 4 real wallet addresses');
+    return null;
+  }
+
+  const players = walletAddresses;
 
   const betWei      = ethers.parseEther(String(betAmountEth));
   const roomIdBytes = encodeRoomId(roomId);
@@ -131,4 +144,11 @@ async function getGameState(roomId) {
   }
 }
 
-module.exports = { createGame, payoutWinners, getGameState, encodeRoomId };
+module.exports = {
+  createGame,
+  payoutWinners,
+  getGameState,
+  encodeRoomId,
+  isEnabled,
+  getContractAddress,
+};

@@ -42,6 +42,31 @@ const WINNING_SCORE = 500;
 const BOT_NAMES = ['Watson', 'Ada', 'Turing'];
 let botCounter = 0;
 
+function isEscrowEnabled() {
+  return Boolean(web3?.isEnabled?.());
+}
+
+function contractAddress() {
+  return web3?.getContractAddress?.() || process.env.CONTRACT_ADDRESS || null;
+}
+
+function humanPlayers(room) {
+  return room.players.filter(p => !p.isAI);
+}
+
+function depositCount(room) {
+  return humanPlayers(room).filter(p => p.depositConfirmed).length;
+}
+
+function requiredDeposits(room) {
+  return isEscrowEnabled() ? 4 : 0;
+}
+
+function allHumanDepositsConfirmed(room) {
+  const humans = humanPlayers(room);
+  return humans.length === 4 && humans.every(p => p.depositConfirmed);
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function safeRoom(room) {
@@ -50,6 +75,10 @@ function safeRoom(room) {
     betAmount: room.betAmount,
     status: room.status,
     players: room.players,
+    contractAddress: room.contractAddress || contractAddress(),
+    escrowTxHash: room.escrowTxHash || null,
+    depositCount: depositCount(room),
+    requiredDeposits: requiredDeposits(room),
     bids: room.bids,
     tricks: room.tricks,
     scores: room.scores,
@@ -259,7 +288,7 @@ async function persistGameResult(room, winTeam) {
     // It uses the backend's owner wallet (OWNER_PRIVATE_KEY in .env) to sign
     // the transaction — players don't need to do anything, money just arrives.
     //
-    if (web3) {
+    if (isEscrowEnabled()) {
       await web3.payoutWinners(room.roomId, winTeam);
     }
 
@@ -306,29 +335,83 @@ async function persistGameResult(room, winTeam) {
 
 // ── startGame ─────────────────────────────────────────────────────────────────
 
-async function startGame(io, room) {
-  console.log(`🎮 Starting room ${room.roomId}`);
-  if (room.status !== 'waiting') return;
+async function prepareEscrow(io, room) {
+  if (!isEscrowEnabled()) {
+    await startGame(io, room);
+    return true;
+  }
+
+  if (room.status !== 'waiting') return false;
+  if (room.players.length !== 4 || humanPlayers(room).length !== 4) return false;
 
   if (room.startTimer) {
     clearTimeout(room.startTimer);
     room.startTimer = null;
   }
 
-  if (room.players.length < 4) fillWithBots(room);
-
-  // ── Register game on-chain so players can deposit ──────────────────────────
-  //
-  // Builds the array of wallet addresses (address(0) for bot seats).
-  // This calls createGame() on SpadesEscrow — it costs a small gas fee
-  // from the backend's owner wallet but no ETH is locked yet.
-  //
-  if (web3) {
-    const wallets = room.players.map(p =>
-      !p.isAI && p.walletAddress ? p.walletAddress : null
-    );
-    await web3.createGame(room.roomId, wallets, room.betAmount);
+  const wallets = room.players.map(p => p.walletAddress);
+  const missingWallet = room.players.find(p => !p.walletAddress);
+  if (missingWallet) {
+    io.to(room.roomId).emit('error', {
+      message: `${missingWallet.username} needs to connect MetaMask before escrow can start.`,
+    });
+    return false;
   }
+
+  room.status = 'creating_escrow';
+  room.contractAddress = contractAddress();
+  room.players = room.players.map(p => ({
+    ...p,
+    depositConfirmed: false,
+    depositTxHash: null,
+  }));
+  roomStore.set(room.roomId, room);
+  broadcastRoom(io, room);
+  io.to(room.roomId).emit('escrow_creating', {
+    roomId: room.roomId,
+    betAmount: room.betAmount,
+    contractAddress: room.contractAddress,
+  });
+
+  const receipt = await web3.createGame(room.roomId, wallets, room.betAmount);
+  if (!receipt) {
+    room.status = 'waiting';
+    roomStore.set(room.roomId, room);
+    broadcastRoom(io, room);
+    io.to(room.roomId).emit('error', {
+      message: 'Escrow contract setup failed. Check backend Sepolia settings and contract owner wallet.',
+    });
+    return false;
+  }
+
+  room.status = 'depositing';
+  room.escrowTxHash = receipt.hash;
+  roomStore.set(room.roomId, room);
+  broadcastRoom(io, room);
+  io.to(room.roomId).emit('deposit_required', {
+    roomId: room.roomId,
+    betAmount: room.betAmount,
+    contractAddress: room.contractAddress,
+    escrowTxHash: room.escrowTxHash,
+  });
+  return true;
+}
+
+async function startGame(io, room) {
+  console.log(`🎮 Starting room ${room.roomId}`);
+  if (isEscrowEnabled()) {
+    if (room.status !== 'depositing') return;
+    if (!allHumanDepositsConfirmed(room)) return;
+  } else if (room.status !== 'waiting') {
+    return;
+  }
+
+  if (!isEscrowEnabled() && room.startTimer) {
+    clearTimeout(room.startTimer);
+    room.startTimer = null;
+  }
+
+  if (!isEscrowEnabled() && room.players.length < 4) fillWithBots(room);
 
   // Persist match record
   const match = await Match.create({
@@ -370,6 +453,17 @@ module.exports = function registerGameSocket(io, socket) {
   socket.on('join_room', async ({ betAmount = 0.1, roomId: requestedRoom } = {}) => {
     try {
       const user = socket.user;
+      const selectedBet = Number(betAmount);
+
+      if (!Number.isFinite(selectedBet) || selectedBet <= 0) {
+        socket.emit('error', { message: 'Choose a valid Sepolia ETH bet amount.' });
+        return;
+      }
+
+      if (isEscrowEnabled() && !user.wallet_address) {
+        socket.emit('error', { message: 'Connect MetaMask before joining a crypto table.' });
+        return;
+      }
 
       // Leave any existing room
       const existing = roomStore.findByUser(user.id);
@@ -386,15 +480,17 @@ module.exports = function registerGameSocket(io, socket) {
       // Find or create room
       let room = requestedRoom
         ? roomStore.get(requestedRoom)
-        : roomStore.findOpen(betAmount);
+        : roomStore.findOpen(selectedBet);
 
       if (!room) {
         const newRoomId = uuidv4();
         room = {
           roomId: newRoomId,
           matchId: null,
-          betAmount,
+          betAmount: selectedBet,
           status: 'waiting',
+          contractAddress: contractAddress(),
+          escrowTxHash: null,
           players: [],
           hands: [[], [], [], []],
           bids: [null, null, null, null],
@@ -410,6 +506,16 @@ module.exports = function registerGameSocket(io, socket) {
           startTimer: null,
         };
         roomStore.set(newRoomId, room);
+      }
+
+      if (room.status !== 'waiting') {
+        socket.emit('error', { message: 'That room is no longer accepting players.' });
+        return;
+      }
+
+      if (humanPlayers(room).length >= 4) {
+        socket.emit('error', { message: 'That table is already full.' });
+        return;
       }
 
       // Assign seat — store wallet address so the contract knows who to pay
@@ -431,7 +537,7 @@ module.exports = function registerGameSocket(io, socket) {
         ...safeRoom(room),
         myHand: [],
         mySeat: seat,
-        contractAddress: process.env.CONTRACT_ADDRESS || null,
+        contractAddress: contractAddress(),
       });
 
       io.to(room.roomId).emit('player_joined', {
@@ -441,7 +547,7 @@ module.exports = function registerGameSocket(io, socket) {
       });
 
       // 60-second auto-start timer (fills remaining seats with bots)
-      if (room.players.length === 1 && !room.startTimer) {
+      if (!isEscrowEnabled() && room.players.length === 1 && !room.startTimer) {
         room.startTimer = setTimeout(async () => {
           const r = roomStore.get(room.roomId);
           if (!r || r.status !== 'waiting') return;
@@ -455,7 +561,11 @@ module.exports = function registerGameSocket(io, socket) {
       //    in useWallet.js, which opens MetaMask on the player's browser.
 
       if (room.players.length === 4) {
-        await startGame(io, room);
+        if (isEscrowEnabled()) {
+          await prepareEscrow(io, room);
+        } else {
+          await startGame(io, room);
+        }
       } else {
         roomStore.set(room.roomId, room);
       }
@@ -468,22 +578,39 @@ module.exports = function registerGameSocket(io, socket) {
   // ── confirm_deposit ──────────────────────────────────────────────────────────
   // Frontend emits this after depositToEscrow() resolves (tx mined).
   // Lets the server know this player's real ETH is locked in the contract.
-  socket.on('confirm_deposit', ({ txHash } = {}) => {
+  socket.on('confirm_deposit', async ({ txHash } = {}) => {
     const room = roomStore.get(socket.roomId);
-    if (!room) return;
+    if (!room || room.status !== 'depositing') return;
 
     const player = room.players.find(p => p.socketId === socket.id);
     if (!player) return;
 
+    if (isEscrowEnabled()) {
+      const chainState = await web3.getGameState(room.roomId);
+      if (!chainState?.hasDeposited?.[player.seat]) {
+        socket.emit('error', {
+          message: 'Deposit was not found on-chain yet. Wait for MetaMask confirmation, then try again.',
+        });
+        return;
+      }
+    }
+
     player.depositConfirmed = true;
     player.depositTxHash    = txHash || null;
     roomStore.set(room.roomId, room);
+    broadcastRoom(io, room);
 
     io.to(room.roomId).emit('player_deposited', {
       seat:   player.seat,
       username: player.username,
       txHash: player.depositTxHash,
+      depositCount: depositCount(room),
+      requiredDeposits: requiredDeposits(room),
     });
+
+    if (allHumanDepositsConfirmed(room)) {
+      await startGame(io, room);
+    }
 
     console.log(`💰 Deposit confirmed  seat=${player.seat}  tx=${txHash}`);
   });

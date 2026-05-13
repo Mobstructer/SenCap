@@ -29,6 +29,7 @@ export function useGameSocket() {
 
     const events = [
       'room_joined', 'player_joined', 'game_start',
+      'escrow_creating', 'deposit_required', 'player_deposited',
       'bid_placed', 'bidding_complete',
       'card_played', 'trick_complete', 'round_complete',
       'round_start', 'game_over', 'player_disconnected', 'error',
@@ -73,8 +74,12 @@ export function useGameSocket() {
     socketRef.current?.emit('chat_message', { message });
   }, []);
 
+  const confirmDeposit = useCallback((txHash) => {
+    socketRef.current?.emit('confirm_deposit', { txHash });
+  }, []);
+
   return {
     room, myHand, mySeat, gameEvent, chat, connected,
-    joinRoom, placeBid, playCard, sendChat,
+    joinRoom, placeBid, playCard, sendChat, confirmDeposit,
   };
 }

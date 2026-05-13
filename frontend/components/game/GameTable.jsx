@@ -15,10 +15,21 @@ const SEAT_LABELS = ['You', 'West', 'Partner', 'East'];
 
 export default function GameTable({ onLeave }) {
   const { user, refreshUser } = useAuth();
-  const { wallet } = useWallet();
+  const wallet = useWallet();
+  const {
+    address,
+    balance,
+    onSepolia,
+    connecting,
+    txPending,
+    txHash,
+    error: walletError,
+    connect,
+    depositToEscrow,
+  } = wallet;
   const {
     room, myHand, mySeat, gameEvent, chat, connected,
-    joinRoom, placeBid, playCard, sendChat,
+    joinRoom, placeBid, playCard, sendChat, confirmDeposit,
   } = useGameSocket();
 
   const [betAmount, setBetAmount] = useState(0.1);
@@ -30,6 +41,7 @@ export default function GameTable({ onLeave }) {
   const [lastWinner, setLastWinner] = useState(null);
   const [inQueue, setInQueue] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
+  const [depositError, setDepositError] = useState('');
 
   // ── Notification helper ──
   const notify = (msg, duration = 2500) => {
@@ -43,8 +55,27 @@ export default function GameTable({ onLeave }) {
     const { type, data } = gameEvent;
 
     switch (type) {
+      case 'room_joined':
+        setInQueue(true);
+        break;
+
+      case 'escrow_creating':
+        notify('Creating escrow room on Sepolia...');
+        break;
+
+      case 'deposit_required':
+        setDepositError('');
+        notify(`Escrow ready. Deposit ${data.betAmount} Sepolia ETH to play.`, 4000);
+        break;
+
+      case 'player_deposited':
+        notify(`${data.username} deposited (${data.depositCount}/${data.requiredDeposits})`);
+        break;
+
       case 'game_start':
         setGameStarted(true);
+        setInQueue(false);
+        setDepositError('');
         setRoundEndData(null);
         setGameOverData(null);
         notify(`Game started! Bet: ${data.betAmount} Sepolia ETH each`);
@@ -79,9 +110,41 @@ export default function GameTable({ onLeave }) {
     }
   }, [gameEvent]);
 
-  const handleJoin = () => {
+  const handleJoin = async () => {
+    setDepositError('');
+
+    if (!address || !onSepolia) {
+      const connectedWallet = await connect();
+      if (!connectedWallet) {
+        const message = walletError || 'Connect MetaMask on Sepolia before joining a crypto table.';
+        setDepositError(message);
+        notify(message, 4000);
+        return;
+      }
+    }
+
     setInQueue(true);
     joinRoom({ betAmount });
+  };
+
+  const handleDeposit = async () => {
+    if (!room?.roomId || !room?.contractAddress) {
+      setDepositError('The escrow contract is not ready yet.');
+      return;
+    }
+
+    try {
+      setDepositError('');
+      const receipt = await depositToEscrow(room.contractAddress, room.roomId, room.betAmount);
+      confirmDeposit(receipt.hash);
+      notify('Deposit confirmed on Sepolia. Waiting for the table...', 4000);
+    } catch (err) {
+      const message = err?.code === 4001
+        ? 'MetaMask transaction was rejected.'
+        : (err?.reason || err?.message || 'Deposit failed.');
+      setDepositError(message);
+      notify(message, 5000);
+    }
   };
 
   const handleCardClick = useCallback((card) => {
@@ -115,6 +178,11 @@ export default function GameTable({ onLeave }) {
   }, [room, mySeat, myHand, selectedCard, playCard]);
 
   const isMyBidTurn = room?.status === 'bidding' && room?.biddingSeat === mySeat;
+  const myPlayer = room?.players?.find(p => p.seat === mySeat);
+  const hasDeposited = Boolean(myPlayer?.depositConfirmed);
+  const isCreatingEscrow = room?.status === 'creating_escrow';
+  const isDepositing = room?.status === 'depositing';
+  const depositProgress = `${room?.depositCount ?? 0}/${room?.requiredDeposits ?? 4}`;
 
   // ── Lobby ──
   if (!gameStarted && !inQueue) {
@@ -144,22 +212,29 @@ export default function GameTable({ onLeave }) {
           </div>
 
           <div style={{ background: 'rgba(201,168,76,0.06)', borderRadius: 8, padding: '10px 12px', marginBottom: 18, fontSize: 12, color: 'var(--muted)' }}>
-            Your balance: <span style={{ color: 'var(--gold)', fontWeight: 700 }}>{(wallet?.balance ?? 0).toFixed(3)} ETH</span>
+            Your balance: <span style={{ color: 'var(--gold)', fontWeight: 700 }}>{Number(balance ?? 0).toFixed(3)} ETH</span>
           </div>
 
-          <button onClick={handleJoin} style={{
+          {depositError && (
+            <div style={{ color: '#e07070', fontSize: 12, background: 'rgba(224,112,112,0.1)', border: '1px solid rgba(224,112,112,0.18)', borderRadius: 8, padding: '8px 10px', marginBottom: 14 }}>
+              {depositError}
+            </div>
+          )}
+
+          <button onClick={handleJoin} disabled={connecting} style={{
             width: '100%', padding: '14px',
             borderRadius: 12, border: 'none',
             background: 'linear-gradient(135deg, var(--gold), #a07830)',
             color: '#0a0d14', fontFamily: 'Cinzel, serif',
-            fontWeight: 900, fontSize: 16, cursor: 'pointer',
+            fontWeight: 900, fontSize: 16, cursor: connecting ? 'not-allowed' : 'pointer',
+            opacity: connecting ? 0.72 : 1,
           }}>
-            Find a Game →
+            {connecting ? 'Connecting Wallet...' : address ? 'Find a Game' : 'Connect Wallet & Find Game'}
           </button>
         </div>
 
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <WalletButton />
+          <WalletButton wallet={wallet} />
           <button onClick={onLeave} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: '6px 16px', color: 'var(--muted)', cursor: 'pointer', fontSize: 13 }}>
             Leaderboard
           </button>
@@ -169,6 +244,74 @@ export default function GameTable({ onLeave }) {
   }
 
   // ── Waiting for players ──
+  if (inQueue && !gameStarted && (isCreatingEscrow || isDepositing)) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', gap: 20, padding: 28 }}>
+        <div style={{ fontSize: 48, animation: isDepositing ? 'none' : 'spin 2s linear infinite' }}>&spades;</div>
+        <div style={{ fontFamily: 'Cinzel, serif', color: 'var(--gold)', fontSize: 20, textAlign: 'center' }}>
+          {isCreatingEscrow ? 'Creating escrow...' : 'Escrow deposit required'}
+        </div>
+
+        <div style={{ background: 'rgba(10,20,12,0.9)', border: '1px solid rgba(201,168,76,0.22)', borderRadius: 12, padding: '16px 18px', maxWidth: 420, width: '100%' }}>
+          {(room?.players || []).map(p => (
+            <div key={p.seat} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, color: 'var(--cream)', fontSize: 13, padding: '5px 0' }}>
+              <span>Seat {p.seat}: {p.username}</span>
+              <span style={{ color: p.depositConfirmed ? '#6ec97a' : 'var(--muted)' }}>
+                {p.depositConfirmed ? 'Deposited' : isDepositing ? 'Waiting deposit' : 'Waiting'}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {isCreatingEscrow && (
+          <div style={{ color: 'var(--muted)', fontSize: 13, maxWidth: 420, textAlign: 'center' }}>
+            Registering this table with the Sepolia escrow contract.
+          </div>
+        )}
+
+        {isDepositing && (
+          <div style={{ background: 'rgba(10,20,12,0.9)', border: '1px solid rgba(201,168,76,0.28)', borderRadius: 12, padding: '18px', maxWidth: 420, width: '100%', textAlign: 'center' }}>
+            <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 8 }}>Deposits confirmed: {depositProgress}</div>
+            <div style={{ color: 'var(--gold-light)', fontFamily: 'Cinzel, serif', fontSize: 18, fontWeight: 900, marginBottom: 6 }}>
+              {Number(room?.betAmount ?? betAmount).toFixed(3)} Sepolia ETH
+            </div>
+            <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 14, wordBreak: 'break-all' }}>
+              Contract: {room?.contractAddress || 'pending'}
+            </div>
+
+            {hasDeposited ? (
+              <div style={{ color: '#6ec97a', fontSize: 13 }}>Your deposit is confirmed. Waiting for the table...</div>
+            ) : (
+              <button onClick={handleDeposit} disabled={txPending || !room?.contractAddress} style={{
+                width: '100%', padding: '12px',
+                borderRadius: 10, border: 'none',
+                background: 'linear-gradient(135deg, var(--gold), #a07830)',
+                color: '#0a0d14', fontFamily: 'Cinzel, serif',
+                fontWeight: 900, cursor: txPending ? 'not-allowed' : 'pointer',
+                opacity: txPending ? 0.7 : 1,
+              }}>
+                {txPending ? 'Confirming in MetaMask...' : 'Deposit Bet in MetaMask'}
+              </button>
+            )}
+
+            {(depositError || walletError) && (
+              <div style={{ color: '#e07070', fontSize: 12, marginTop: 12 }}>
+                {depositError || walletError}
+              </div>
+            )}
+            {(txHash || myPlayer?.depositTxHash) && (
+              <div style={{ color: 'var(--muted)', fontSize: 11, marginTop: 10, wordBreak: 'break-all' }}>
+                Tx: {txHash || myPlayer.depositTxHash}
+              </div>
+            )}
+          </div>
+        )}
+
+        <WalletButton wallet={wallet} />
+      </div>
+    );
+  }
+
   if (inQueue && !gameStarted) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', gap: 20 }}>
@@ -214,9 +357,9 @@ export default function GameTable({ onLeave }) {
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
           <span style={{ color: 'var(--muted)', fontSize: 12 }}>
-            {Number(wallet?.balance ?? 0).toFixed(3)} ETH
+            {Number(balance ?? 0).toFixed(3)} ETH
           </span>
-          <WalletButton compact />
+          <WalletButton compact wallet={wallet} />
         </div>
       </div>
 

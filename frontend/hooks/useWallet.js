@@ -117,7 +117,11 @@ export function useWallet() {
       await _refreshBalance(addr);
 
       // 3. Save address to backend so it can be stored in the room
-      try { await api.updateWallet(addr); } catch (_) {}
+      try {
+        await api.updateWallet(addr);
+      } catch (err) {
+        throw new Error(err.message || 'Wallet connected, but the account could not be updated.');
+      }
 
       return { address: addr, signer: s };
     } catch (err) {
