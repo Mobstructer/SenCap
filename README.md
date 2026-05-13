@@ -133,7 +133,9 @@ Crypto Spades is a full-stack multiplayer Spades card game with real-time gamepl
 
 [Include screenshots of the application here]
 
-- Welcome/Login page
+- Home page
+<img width="1920" height="1080" alt="Screenshot 2026-05-13 010510" src="https://github.com/user-attachments/assets/ec8c0fd0-16a0-4d20-97f3-3ad54c0e7db1" />
+- Login page
 - Game table
 - Bidding interface
 - Scoreboard
