@@ -1,10 +1,11 @@
 # Malachi Gray
-# ♠ Crypto Spades — Full Stack
-
-4-player multiplayer Spades with JWT auth, real-time Socket.IO gameplay, MySQL persistence, and simulated test-ETH betting.
 
 COSC – 480
 Dr. Tankeh
+
+# ♠ Crypto Spades — Full Stack
+
+4-player multiplayer Spades with JWT auth, real-time Socket.IO gameplay, MySQL persistence, and simulated test-ETH betting.
 
 ## Prerequisites
 
