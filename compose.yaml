@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+  db:
+    image: mysql:8
+    container_name: spades-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: SenCap1234
+      MYSQL_DATABASE: spades_db
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+
+  backend:
+    build: ./backend
+    container_name: spades-backend
+    restart: always
+    depends_on:
+      - db
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: spades_db
+      DB_USER: root
+      DB_PASS: SenCap1234
+      JWT_SECRET: supersecret
+      CLIENT_URL: http://172.30.192.28:3000
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  frontend:
+    build: ./frontend
+    container_name: spades-frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://172.30.192.28:4000
+      NEXT_PUBLIC_SOCKET_URL: http://172.30.192.28:4000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  db_data:

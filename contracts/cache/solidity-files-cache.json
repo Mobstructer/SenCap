@@ -1,0 +1,41 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "C:\\Users\\malac\\Downloads\\SenCap-Main\\spades\\contracts\\contracts\\SpadesEscrow.sol": {
+      "lastModificationDate": 1778617470479,
+      "contentHash": "136373e5839d83c4c47e99032292f9ae",
+      "sourceName": "contracts/SpadesEscrow.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.24"
+      ],
+      "artifacts": [
+        "SpadesEscrow"
+      ]
+    }
+  }
+}

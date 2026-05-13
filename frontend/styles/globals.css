@@ -1,0 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,400&display=swap');
+
+:root {
+  --felt: #0a1f0e;
+  --felt-light: #0d2812;
+  --ink: #0a0d14;
+  --card-bg: #f8f3e8;
+  --card-red: #c0392b;
+  --card-black: #1a1a2e;
+  --gold: #c9a84c;
+  --gold-light: #f0d080;
+  --cream: #f5efe0;
+  --muted: #5a6a5e;
+  --border: rgba(201,168,76,0.25);
+  --glow: rgba(201,168,76,0.15);
+  --red-team: #e05c5c;
+  --blue-team: #5c7fe0;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; }
+
+body {
+  background: var(--ink);
+  color: var(--cream);
+  font-family: 'Crimson Pro', Georgia, serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, .heading {
+  font-family: 'Cinzel', serif;
+  letter-spacing: 0.02em;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--ink); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Felt table */
+.felt-bg {
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 50%, var(--felt-light) 0%, var(--felt) 60%, var(--ink) 100%);
+  position: relative;
+}
+.felt-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.01) 2px, rgba(255,255,255,0.01) 4px),
+    repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(255,255,255,0.01) 2px, rgba(255,255,255,0.01) 4px);
+  pointer-events: none;
+}
+
+/* Animations */
+@keyframes dealIn {
+  from { opacity: 0; transform: translateY(-60px) rotate(-8deg) scale(0.8); }
+  to   { opacity: 1; transform: translateY(0) rotate(0deg) scale(1); }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-gold {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201,168,76,0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(201,168,76,0); }
+}
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.animate-deal { animation: dealIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both; }
+.animate-fade-up { animation: fadeUp 0.3s ease both; }
+.pulse-gold { animation: pulse-gold 2s infinite; }
