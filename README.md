@@ -136,10 +136,19 @@ Crypto Spades is a full-stack multiplayer Spades card game with real-time gamepl
 - Home page
 <img width="1920" height="1080" alt="Screenshot 2026-05-13 010510" src="https://github.com/user-attachments/assets/ec8c0fd0-16a0-4d20-97f3-3ad54c0e7db1" />
 - Login page
-- Game table
+<img width="1920" height="1080" alt="Screenshot 2026-05-13 010522" src="https://github.com/user-attachments/assets/65cc2a31-1296-4236-bcbc-0720c4195d7f" />
+- Register page
+<img width="1920" height="1080" alt="Screenshot 2026-05-13 010559" src="https://github.com/user-attachments/assets/b15babdc-3a54-4725-82ab-89a70a441ab2" />
+- Account page
+<img width="1920" height="1080" alt="Screenshot 2026-05-13 010628" src="https://github.com/user-attachments/assets/a5622e85-9b2c-4519-a893-41c845077753" />
+- Play page
+<img width="1920" height="1080" alt="Screenshot 2026-05-13 010628" src="https://github.com/user-attachments/assets/b9c0a538-25e0-4b22-a354-324116d1e5ed" />
+- Finding game
+<img width="1920" height="1080" alt="Screenshot 2026-05-13 010633" src="https://github.com/user-attachments/assets/d7df2f97-b58c-4112-a25c-7827937865f1" />
 - Bidding interface
-- Scoreboard
-- Wallet connection
+<img width="1920" height="1080" alt="Screenshot 2026-05-13 010734" src="https://github.com/user-attachments/assets/c9d2d13f-bfc9-400f-9c7e-f9c8b83e1cc4" />
+- Game table
+<img width="1920" height="1080" alt="Screenshot 2026-05-13 010739" src="https://github.com/user-attachments/assets/c83435d4-164f-4656-aa9f-4847b459ec8f" />
 
 ## Conclusion
 
